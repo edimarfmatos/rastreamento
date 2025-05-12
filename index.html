@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rastreamento de Produtos</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+    h1 {
+      margin: auto;
+      padding: 2px;
+      font-size: 5vw;
+    }
+    header {
+      background-color: #004080;
+      color: white;
+      padding: 1vw;
+    }
+    main { padding: 1rem; }
+    .form-section { margin-bottom: 20px; }
+    input, button {
+      padding: 8px;
+      margin: 5px;
+      font-size: 14px;
+    }
+    .grid-container {
+      display: flex;
+      justify-content: flex-start;
+      gap: 30px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+    }
+    .column-pair {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-end;
+    }
+    .column {
+      display: flex;
+      flex-direction: column-reverse;
+      margin: 0 1px;
+    }
+    .cell {
+      width: 40px;
+      height: 25px;
+      border: 1px solid #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      background-color: #fff;
+      transition: background-color 0.3s;
+    }
+    .cell.ocupado { background-color: #ccc; }
+    .cell.highlight { background-color: lightgreen !important; }
+    .label {
+      text-align: center;
+      font-weight: bold;
+      font-size: 12px;
+      padding: 4px;
+    }
+    .resultado {
+      margin-top: 20px;
+      text-align: left;
+      padding-left: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Rastreamento de Produtos no Dep</h1>
+  </header>
+
+  <main>
+    <section class="form-section" id="search-box">
+      <input type="text" id="busca" placeholder="Digite NF/Desc..." oninput="this.value = this.value.toUpperCase()">
+      <button onclick="buscarProduto()">Buscar Prod</button>
+    </section>
+
+    <section class="form-section" id="cadastro-box">
+      <input type="text" id="novaLocacao" placeholder="Loc(ex: 10A1)" oninput="this.value = this.value.toUpperCase()">
+      <input type="text" id="novaNF" placeholder="Número NF" oninput="this.value = this.value.toUpperCase()">
+      <input type="text" id="novaDesc" placeholder="Desc do Produto" oninput="this.value = this.value.toUpperCase()">
+      <button onclick="cadastrarProduto()">Cadastrar Prod</button>
+    </section>
+
+    <section class="grid-container" id="tabuleiro"></section>
+
+    <div class="resultado" id="resultadoBusca"></div>
+  </main>
+</div>
+
+<script>
+  const colunas = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+  const linhas = 120;
+  let produtos = JSON.parse(localStorage.getItem('produtos')) || [];
+
+  const tabuleiro = document.getElementById('tabuleiro');
+  const resultadoBusca = document.getElementById('resultadoBusca');
+
+  function criarTabuleiro() {
+    tabuleiro.innerHTML = "";
+    colunas.forEach(col => {
+      const par = document.createElement('div');
+      par.className = 'column-pair';
+
+      const coluna1 = document.createElement('div');
+      coluna1.className = 'column';
+      const coluna2 = document.createElement('div');
+      coluna2.className = 'column';
+
+      for (let i = 1; i <= linhas; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.innerText = i;
+        const lado = (i % 2 === 1) ? '1' : '2';
+        cell.id = `${i}${col}${lado}`;
+
+        if (lado === '1') coluna1.appendChild(cell);
+        else coluna2.appendChild(cell);
+      }
+
+      par.appendChild(coluna2);
+      par.appendChild(coluna1);
+
+      const label2 = document.createElement('div');
+      label2.className = 'label';
+      label2.innerText = `${col}2`;
+
+      const label1 = document.createElement('div');
+      label1.className = 'label';
+      label1.innerText = `${col}1`;
+
+      par.appendChild(label2);
+      par.appendChild(label1);
+      tabuleiro.appendChild(par);
+    });
+
+    produtos.forEach(prod => {
+      const celula = document.getElementById(prod.local);
+      if (celula) celula.classList.add('ocupado');
+    });
+  }
+
+  function salvarProdutos() {
+    localStorage.setItem('produtos', JSON.stringify(produtos));
+  }
+
+  function buscarProduto() {
+    const termo = document.getElementById('busca').value.trim().toUpperCase();
+    document.querySelectorAll('.cell').forEach(c => c.classList.remove('highlight'));
+    resultadoBusca.innerHTML = '';
+
+    const encontrados = produtos.filter(p =>
+      p.descricao.includes(termo) || p.nf.includes(termo) || p.local === termo
+    );
+
+    if (encontrados.length > 0) {
+      encontrados.forEach(prod => {
+        const celula = document.getElementById(prod.local);
+        if (celula) {
+          celula.classList.add('highlight');
+          celula.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        }
+      });
+
+      resultadoBusca.innerHTML = encontrados.map(prod => `
+        <p>
+          <strong>${prod.descricao}</strong> (NF: ${prod.nf}) em <strong>${prod.local}</strong>
+          <button onclick="atualizarProduto('${prod.local}')">Atualizar</button>
+          <button onclick="deletarProduto('${prod.local}')">Deletar</button>
+        </p>
+      `).join('');
+    } else {
+      alert("Produto não encontrado.");
+    }
+  }
+
+  function cadastrarProduto() {
+    const local = document.getElementById('novaLocacao').value.trim().toUpperCase();
+    const nf = document.getElementById('novaNF').value.trim().toUpperCase();
+    const desc = document.getElementById('novaDesc').value.trim().toUpperCase();
+
+    if (!local || !nf || !desc) {
+      alert('Preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    const jaExiste = produtos.some(p => p.local === local);
+    if (jaExiste) {
+      alert(`Já existe um produto na localização ${local}.`);
+      return;
+    }
+
+    produtos.push({ local, descricao: desc, nf });
+    salvarProdutos();
+    criarTabuleiro();
+
+    document.getElementById('novaLocacao').value = '';
+    document.getElementById('novaNF').value = '';
+    document.getElementById('novaDesc').value = '';
+  }
+
+  function atualizarProduto(local) {
+    const novoNF = prompt("Nova NF:");
+    const novaDesc = prompt("Nova descrição:");
+    if (!novoNF || !novaDesc) return alert("Campos obrigatórios.");
+
+    const index = produtos.findIndex(p => p.local === local);
+    if (index !== -1) {
+      produtos[index].nf = novoNF.toUpperCase();
+      produtos[index].descricao = novaDesc.toUpperCase();
+      salvarProdutos();
+      alert("Produto atualizado!");
+      criarTabuleiro();
+      buscarProduto();
+    }
+  }
+
+  function deletarProduto(local) {
+    if (!confirm(`Deseja remover o produto da localização ${local}?`)) return;
+
+    produtos = produtos.filter(p => p.local !== local);
+    salvarProdutos();
+    criarTabuleiro();
+    resultadoBusca.innerHTML = '';
+  }
+
+  criarTabuleiro();
+</script>
+</body>
+</html>
